@@ -74,8 +74,9 @@ export default function GalleryPage() {
     return <>{loadingScreen}</>;
   }
 
-  const visible = privateMode ? works : works.filter((w) => !w.locked);
-  const hiddenCount = works.length - visible.length;
+  // Private mode shows ONLY locked studies; normal mode shows only unlocked.
+  const visible = works.filter((w) => (privateMode ? !!w.locked : !w.locked));
+  const lockedCount = works.filter((w) => w.locked).length;
 
   // Empty folio entirely.
   if (works.length === 0) {
@@ -105,7 +106,7 @@ export default function GalleryPage() {
     );
   }
 
-  // Everything is locked and Private mode is off.
+  // No studies to show in the current mode.
   if (visible.length === 0) {
     return (
       <>
@@ -114,14 +115,26 @@ export default function GalleryPage() {
           <div className="logo-sub">color studies</div>
         </div>
         <div className="empty-state">
-          <h2>Nothing on display</h2>
-          <p>
-            {hiddenCount} locked {hiddenCount === 1 ? "study is" : "studies are"} hidden.
-            Turn on Private mode to see them.
-          </p>
-          <button className="btn btn-primary" onClick={togglePrivate}>
-            🔓 Enter Private mode
-          </button>
+          {privateMode ? (
+            <>
+              <h2>No locked studies</h2>
+              <p>Lock a study from its detail page to keep it here in Private mode.</p>
+              <button className="btn btn-primary" onClick={togglePrivate}>
+                Leave Private mode
+              </button>
+            </>
+          ) : (
+            <>
+              <h2>Nothing on display</h2>
+              <p>
+                {lockedCount} locked {lockedCount === 1 ? "study is" : "studies are"} hidden.
+                Turn on Private mode to see them.
+              </p>
+              <button className="btn btn-primary" onClick={togglePrivate}>
+                🔓 Enter Private mode
+              </button>
+            </>
+          )}
         </div>
         {loadingScreen}
       </>
@@ -190,7 +203,7 @@ export default function GalleryPage() {
 
       <div className="gallery-count">
         {visible.length.toString().padStart(2, "0")} {visible.length === 1 ? "study" : "studies"}
-        {privateMode && hiddenCount > 0 ? "" : null}
+        {privateMode ? " · private" : ""}
       </div>
 
       {loadingScreen}

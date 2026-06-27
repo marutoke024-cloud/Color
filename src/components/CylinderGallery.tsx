@@ -10,7 +10,10 @@ const CARD_W = 2.3;
 const CARD_H = 3.2;
 const BASE_CAM_Z = 14.5;
 const CAM_FOV = 30;
-const AUTO_SPEED = 0.0005; // constant slow drift (radians / frame)
+// Constant *linear* drift at the front (units / frame). Angular speed is
+// derived as AUTO_LINEAR / radius so the perceived speed stays the same — and
+// slow — no matter how large the ring grows.
+const AUTO_LINEAR = 0.0016;
 const DENSE_STEP = Math.PI / 6; // 30° between cards (the constant spacing)
 const RING_SLOTS = Math.round((Math.PI * 2) / DENSE_STEP); // 12 cards per turn
 // Chord between neighbours at the dense step on the base radius. We keep this
@@ -225,7 +228,7 @@ function Scene({
 
   useFrame(() => {
     const c = control.current;
-    c.target += AUTO_SPEED; // always drifting
+    c.target += AUTO_LINEAR / radius; // constant, slow perceived drift
     c.current += (c.target - c.current) * 0.09;
   });
 
