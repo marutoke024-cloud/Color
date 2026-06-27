@@ -146,6 +146,19 @@ button {
   border-color: #9a4a44;
   color: #9a4a44;
 }
+.btn.active {
+  background: var(--ink-900);
+  color: var(--paper-0);
+  border-color: var(--ink-900);
+}
+
+img.grayscale {
+  filter: grayscale(1);
+}
+.composite-frame img,
+.original-shot img {
+  transition: filter 0.25s ease;
+}
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

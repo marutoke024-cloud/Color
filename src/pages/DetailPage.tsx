@@ -17,6 +17,7 @@ export default function DetailPage() {
   const navigate = useNavigate();
   const [work, setWork] = useState<Work | null | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
+  const [gray, setGray] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -73,6 +74,13 @@ export default function DetailPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className={`btn${gray ? " active" : ""}`}
+            onClick={() => setGray((g) => !g)}
+            title="Drop the colour to compare values"
+          >
+            {gray ? "● Color" : "◐ Grayscale"}
+          </button>
           <button className="btn" onClick={toggleLock}>
             {work.locked ? "🔓 Unlock" : "🔒 Lock"}
           </button>
@@ -84,7 +92,11 @@ export default function DetailPage() {
 
       <div className="detail-grid">
         <div className="composite-frame">
-          <img src={work.compositeDataUrl} alt={work.title ?? "Study"} />
+          <img
+            className={gray ? "grayscale" : undefined}
+            src={work.compositeDataUrl}
+            alt={work.title ?? "Study"}
+          />
         </div>
 
         <div>
@@ -109,7 +121,11 @@ export default function DetailPage() {
             <dt>Source photograph</dt>
             <dd>
               <div className="original-shot">
-                <img src={work.originalDataUrl} alt="Original source" />
+                <img
+                  className={gray ? "grayscale" : undefined}
+                  src={work.originalDataUrl}
+                  alt="Original source"
+                />
               </div>
             </dd>
 

@@ -12,10 +12,23 @@ import { buildSampleWorks } from "../lib/samples";
 
 type View = "carousel" | "grid";
 
+// Remembered across in-app navigation (e.g. returning from a detail page) so
+// Back keeps the view the user was in. Resets on a full reload.
+let lastView: View = "carousel";
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function GalleryPage() {
   const [works, setWorks] = useState<Work[] | null>(null);
   const [seeding, setSeeding] = useState(false);
-  const [view, setView] = useState<View>("carousel");
+  const [view, setView] = useState<View>(lastView);
   const [fadingOut, setFadingOut] = useState(false);
   const [privateMode, setPrivate] = useState(getPrivateMode());
   const navigate = useNavigate();
@@ -27,7 +40,8 @@ export default function GalleryPage() {
 
   useEffect(() => {
     getAllWorks().then((w) => {
-      setWorks(w);
+      // Random order on every open, so the carousel/grid arrangement varies.
+      setWorks(shuffle(w));
       // Fade the loading screen out once the data is in.
       requestAnimationFrame(() => setOverlayVisible(false));
       window.setTimeout(() => setOverlayMounted(false), 550);
@@ -39,7 +53,7 @@ export default function GalleryPage() {
     try {
       const samples = buildSampleWorks();
       for (const w of samples) await saveWork(w);
-      setWorks(await getAllWorks());
+      setWorks(shuffle(await getAllWorks()));
     } finally {
       setSeeding(false);
     }
@@ -47,6 +61,7 @@ export default function GalleryPage() {
 
   function switchView(next: View) {
     if (next === view) return;
+    lastView = next;
     setFadingOut(true);
     if (switchTimer.current) window.clearTimeout(switchTimer.current);
     switchTimer.current = window.setTimeout(() => {
