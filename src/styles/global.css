@@ -506,6 +506,90 @@ button {
   justify-content: center;
 }
 
+/* ---- Cloud / sync ---- */
+.cloud-card {
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  max-width: 560px;
+}
+.cloud-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink-700);
+  margin-bottom: 4px;
+}
+.cloud-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-300);
+  flex-shrink: 0;
+}
+.cloud-dot.on {
+  background: #5b8c6e;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+.field label {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+.field input,
+.field textarea {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--paper-0);
+  outline: none;
+  transition: border-color 0.16s ease;
+}
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--ink-400);
+}
+.field textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.cloud-note {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  line-height: 1.65;
+  margin-top: 14px;
+}
+.cloud-note code {
+  font-family: ui-monospace, Menlo, monospace;
+  background: var(--paper-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+.cloud-msg {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+.cloud-msg.error {
+  color: #9a4a44;
+}
+
 .toast {
   position: fixed;
   bottom: 26px;

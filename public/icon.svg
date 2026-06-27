@@ -1,26 +1,41 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Onyx Folio">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Opal Folio">
   <defs>
-    <linearGradient id="onyx" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2B2B2E" />
-      <stop offset="0.55" stop-color="#161617" />
-      <stop offset="1" stop-color="#050506" />
-    </linearGradient>
-    <radialGradient id="sheen" cx="0.3" cy="0.24" r="0.9">
-      <stop offset="0" stop-color="#6A6A70" stop-opacity="0.45" />
-      <stop offset="0.4" stop-color="#2B2B2E" stop-opacity="0" />
+    <radialGradient id="opalBase" cx="0.42" cy="0.34" r="0.9">
+      <stop offset="0" stop-color="#FCFCFB" />
+      <stop offset="0.55" stop-color="#EAEDEF" />
+      <stop offset="1" stop-color="#D2D7DC" />
     </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="1" stop-color="#bcc2c9" stop-opacity="0.9" />
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="20" />
+    </filter>
+    <clipPath id="tile">
+      <rect width="512" height="512" rx="116" />
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="116" fill="url(#onyx)" />
-  <rect width="512" height="512" rx="116" fill="url(#sheen)" />
-  <!-- Serif O mark -->
-  <circle cx="256" cy="232" r="118" stroke="#F5F5F2" stroke-width="20" fill="none" />
-  <circle cx="256" cy="232" r="118" stroke="#000000" stroke-width="20" fill="none" stroke-opacity="0.18" transform="translate(0 3)" />
-  <!-- palette band -->
-  <g>
-    <rect x="146" y="396" width="44" height="44" rx="10" fill="#C9C4BC" />
-    <rect x="200" y="396" width="44" height="44" rx="10" fill="#9AA7A0" />
-    <rect x="254" y="396" width="44" height="44" rx="10" fill="#C8A98C" />
-    <rect x="308" y="396" width="44" height="44" rx="10" fill="#7E8A99" />
-    <rect x="362" y="396" width="44" height="44" rx="10" fill="#4A4A4D" />
+
+  <!-- pearly stone -->
+  <rect width="512" height="512" rx="116" fill="url(#opalBase)" />
+
+  <!-- opal play-of-color: soft iridescent flecks, clipped to the tile -->
+  <g clip-path="url(#tile)">
+    <g filter="url(#soft)" opacity="0.72">
+      <ellipse cx="150" cy="168" rx="80" ry="60" fill="#4EC4B6" />
+      <ellipse cx="338" cy="138" rx="70" ry="54" fill="#7FA4F2" />
+      <ellipse cx="398" cy="306" rx="76" ry="66" fill="#F0AE4E" />
+      <ellipse cx="172" cy="372" rx="88" ry="70" fill="#7FD37A" />
+      <ellipse cx="332" cy="398" rx="74" ry="58" fill="#ED93B2" />
+      <ellipse cx="262" cy="262" rx="64" ry="52" fill="#B98BE9" />
+    </g>
   </g>
+
+  <!-- glassy inner edge -->
+  <rect x="18" y="18" width="476" height="476" rx="102" fill="none" stroke="url(#edge)" stroke-width="3" opacity="0.8" />
+
+  <!-- serif O monogram -->
+  <circle cx="256" cy="252" r="118" stroke="#ffffff" stroke-width="26" fill="none" opacity="0.55" />
+  <circle cx="256" cy="252" r="118" stroke="#2F3338" stroke-width="18" fill="none" opacity="0.9" />
 </svg>

@@ -25,7 +25,7 @@ let dbPromise: Promise<IDBPDatabase<FolioDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<FolioDB>("onyx-folio", 1, {
+    dbPromise = openDB<FolioDB>("opal-folio", 1, {
       upgrade(db) {
         const store = db.createObjectStore("works", { keyPath: "id" });
         store.createIndex("by-createdAt", "createdAt");

@@ -35,7 +35,7 @@ export default function GalleryPage() {
     <>
       {/* Background wordmark — always present behind the cards. */}
       <div className="gallery-logo">
-        <div className="logo-main">Onyx&nbsp;Folio</div>
+        <div className="logo-main">Opal&nbsp;Folio</div>
         <div className="logo-sub">color studies</div>
       </div>
 
