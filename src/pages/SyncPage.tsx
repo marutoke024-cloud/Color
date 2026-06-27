@@ -212,7 +212,17 @@ export default function SyncPage() {
 }
 
 function errText(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? "";
   const m = e instanceof Error ? e.message : String(e);
+  if (code === "auth/operation-not-allowed" || m.includes("operation-not-allowed")) {
+    return "Google sign-in isn't enabled for this Firebase project. In the Firebase console open Authentication → Sign-in method, and enable the Google provider.";
+  }
+  if (code === "auth/unauthorized-domain" || m.includes("unauthorized-domain")) {
+    return "This site's domain isn't authorised. In the Firebase console add it under Authentication → Settings → Authorized domains.";
+  }
+  if (code === "auth/configuration-not-found" || m.includes("configuration-not-found")) {
+    return "Authentication isn't set up on this project yet. Enable Authentication (and the Google provider) in the Firebase console.";
+  }
   if (m.includes("popup")) return "Sign-in popup was blocked or closed.";
   if (m.toLowerCase().includes("cors")) return "Blocked by CORS — configure your Storage bucket's CORS (see README).";
   return m;

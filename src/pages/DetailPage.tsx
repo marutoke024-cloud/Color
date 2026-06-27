@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { deleteWork, getWork, type Work } from "../lib/db";
+import { deleteWork, getWork, saveWork, type Work } from "../lib/db";
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleString(undefined, {
@@ -36,6 +36,15 @@ export default function DetailPage() {
     navigate("/");
   }
 
+  async function toggleLock() {
+    if (!work) return;
+    const updated = { ...work, locked: !work.locked };
+    await saveWork(updated);
+    setWork(updated);
+    setToast(updated.locked ? "Locked — hidden unless Private mode is on" : "Unlocked");
+    setTimeout(() => setToast(null), 1800);
+  }
+
   if (work === undefined) {
     return (
       <div className="center-load">
@@ -58,11 +67,19 @@ export default function DetailPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">{work.title ?? "Untitled study"}</h1>
-          <p className="page-subtitle">{formatDate(work.createdAt)}</p>
+          <p className="page-subtitle">
+            {formatDate(work.createdAt)}
+            {work.locked && <span className="lock-badge">🔒 Locked</span>}
+          </p>
         </div>
-        <button className="btn btn-danger" onClick={remove}>
-          Delete
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn" onClick={toggleLock}>
+            {work.locked ? "🔓 Unlock" : "🔒 Lock"}
+          </button>
+          <button className="btn btn-danger" onClick={remove}>
+            Delete
+          </button>
+        </div>
       </div>
 
       <div className="detail-grid">

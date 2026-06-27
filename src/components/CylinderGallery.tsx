@@ -1,17 +1,43 @@
 import { useEffect, useRef, useState } from "react";
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useNavigate } from "react-router-dom";
 import type { Work } from "../lib/db";
 
 /* ---- Geometry tuning ---- */
-const RADIUS = 5.0;
+const BASE_R = 5.0;
 const CARD_W = 2.3;
 const CARD_H = 3.2;
-const CAM_Z = 14.5;
+const BASE_CAM_Z = 14.5;
 const CAM_FOV = 30;
 const AUTO_SPEED = 0.0005; // constant slow drift (radians / frame)
-const DENSE_STEP = Math.PI / 6; // 30° between cards when the ring isn't full
+const DENSE_STEP = Math.PI / 6; // 30° between cards (the constant spacing)
+const RING_SLOTS = Math.round((Math.PI * 2) / DENSE_STEP); // 12 cards per turn
+// Chord between neighbours at the dense step on the base radius. We keep this
+// constant for any count by growing the radius, so cards never overlap and the
+// spacing always looks the same.
+const CHORD = 2 * BASE_R * Math.sin(DENSE_STEP / 2);
+const FRONT_GAP = BASE_CAM_Z - BASE_R; // camera distance to the front card
+
+/** Geometry for a given number of cards: even spacing that never overlaps and
+ *  keeps a constant neighbour gap + constant front-card size. */
+function ringGeometry(count: number) {
+  const slots = Math.max(count, RING_SLOTS);
+  const step = (Math.PI * 2) / slots;
+  const radius = Math.max(BASE_R, CHORD / (2 * Math.sin(Math.PI / slots)));
+  return { slots, step, radius, camZ: radius + FRONT_GAP };
+}
+
+/** Keeps the camera pulled back proportionally so the front card is always the
+ *  same size, however large the ring grows. */
+function CameraRig({ z }: { z: number }) {
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    camera.position.z = z;
+    camera.updateProjectionMatrix();
+  }, [camera, z]);
+  return null;
+}
 
 /* ---- Card thumbnail (fixed card aspect, uniform palette band) ---- */
 const TEX_W = 512;
@@ -90,11 +116,13 @@ interface SharedControl {
 function Card({
   work,
   angle,
+  radius,
   control,
   onOpen,
 }: {
   work: Work;
   angle: number;
+  radius: number;
   control: React.MutableRefObject<SharedControl>;
   onOpen: (id: string) => void;
 }) {
@@ -126,8 +154,8 @@ function Card({
     const g = groupRef.current;
     if (!g) return;
     const eff = angle + control.current.current;
-    g.position.x = RADIUS * Math.sin(eff);
-    g.position.z = RADIUS * Math.cos(eff);
+    g.position.x = radius * Math.sin(eff);
+    g.position.z = radius * Math.cos(eff);
     g.rotation.y = eff;
 
     const facing = Math.cos(eff); // 1 at front, <0 at back
@@ -189,13 +217,11 @@ function Scene({
   control: React.MutableRefObject<SharedControl>;
   onOpen: (id: string) => void;
 }) {
-  // Fill the whole ring so there is no seam: keep ~30° spacing by tiling the
-  // works across at least RING_SLOTS positions; a busy gallery just packs
-  // tighter. Either way slots * step === 2π, so the loop is continuous.
+  // Constant spacing for any count: tile up to a full ring when sparse, and
+  // grow the radius (and pull the camera back) when there are more than a
+  // ring's worth, so cards never overlap and the gap always looks the same.
   const n = Math.max(1, works.length);
-  const RING_SLOTS = Math.round((Math.PI * 2) / DENSE_STEP); // 12
-  const slots = Math.max(n, RING_SLOTS);
-  const step = (Math.PI * 2) / slots;
+  const { slots, step, radius, camZ } = ringGeometry(n);
 
   useFrame(() => {
     const c = control.current;
@@ -205,11 +231,13 @@ function Scene({
 
   return (
     <>
+      <CameraRig z={camZ} />
       {Array.from({ length: slots }, (_, i) => (
         <Card
           key={i}
           work={works[i % n]}
           angle={i * step}
+          radius={radius}
           control={control}
           onOpen={onOpen}
         />
@@ -275,7 +303,7 @@ export default function CylinderGallery({ works }: { works: Work[] }) {
     <div ref={wrapRef} className="gallery-stage" style={{ touchAction: "none" }}>
       <Canvas
         gl={{ alpha: true, antialias: true }}
-        camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV }}
+        camera={{ position: [0, 0, BASE_CAM_Z], fov: CAM_FOV }}
         dpr={[1, 2]}
       >
         <Scene works={works} control={control} onOpen={(id) => navigate(`/work/${id}`)} />

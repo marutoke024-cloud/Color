@@ -221,12 +221,16 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- View toggle (bottom-left) ---- */
-.view-toggle {
+/* ---- View / private controls (bottom-left) ---- */
+.gallery-controls {
   position: fixed;
   bottom: 22px;
   left: 26px;
   z-index: 15;
+  display: flex;
+  gap: 10px;
+}
+.view-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -239,14 +243,86 @@ button {
   letter-spacing: 0.04em;
   padding: 9px 15px;
   border-radius: 999px;
-  transition: border-color 0.18s ease, color 0.18s ease;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
 }
 .view-toggle:hover {
   border-color: var(--ink-400);
   color: var(--ink-900);
 }
+.view-toggle.active {
+  background: var(--ink-900);
+  color: var(--paper-0);
+  border-color: var(--ink-900);
+}
 .view-toggle svg {
   display: block;
+}
+
+/* ---- View cross-fade ---- */
+.view-fade {
+  opacity: 1;
+  transition: opacity 0.22s ease;
+}
+.view-fade.out {
+  opacity: 0;
+}
+
+/* ---- Loading screen ---- */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background-color: var(--paper-1);
+  background-image: radial-gradient(120% 90% at 50% 0%, var(--paper-0) 0%, var(--paper-1) 55%, var(--paper-2) 100%);
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+.loading-screen.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-mark {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(40px, 8vw, 76px);
+  letter-spacing: 0.01em;
+  color: var(--ink-900);
+}
+.loading-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+/* ---- Lock indicators ---- */
+.lock-badge {
+  margin-left: 12px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+.grid-lock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.grid-card {
+  position: relative;
 }
 
 /* ---- Grid (all works) view ---- */

@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CylinderGallery from "../components/CylinderGallery";
-import { getAllWorks, saveWork, type Work } from "../lib/db";
+import {
+  getAllWorks,
+  getPrivateMode,
+  saveWork,
+  setPrivateMode,
+  type Work,
+} from "../lib/db";
 import { buildSampleWorks } from "../lib/samples";
 
 type View = "carousel" | "grid";
@@ -10,10 +16,22 @@ export default function GalleryPage() {
   const [works, setWorks] = useState<Work[] | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [view, setView] = useState<View>("carousel");
+  const [fadingOut, setFadingOut] = useState(false);
+  const [privateMode, setPrivate] = useState(getPrivateMode());
   const navigate = useNavigate();
 
+  // Loading overlay (covers the DB read lag for large folios), with fade-out.
+  const [overlayMounted, setOverlayMounted] = useState(true);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const switchTimer = useRef<number | null>(null);
+
   useEffect(() => {
-    getAllWorks().then(setWorks);
+    getAllWorks().then((w) => {
+      setWorks(w);
+      // Fade the loading screen out once the data is in.
+      requestAnimationFrame(() => setOverlayVisible(false));
+      window.setTimeout(() => setOverlayMounted(false), 550);
+    });
   }, []);
 
   async function loadSamples() {
@@ -27,14 +45,39 @@ export default function GalleryPage() {
     }
   }
 
-  if (works === null) {
-    return (
-      <div className="center-load">
-        <div className="spinner" />
-      </div>
-    );
+  function switchView(next: View) {
+    if (next === view) return;
+    setFadingOut(true);
+    if (switchTimer.current) window.clearTimeout(switchTimer.current);
+    switchTimer.current = window.setTimeout(() => {
+      setView(next);
+      setFadingOut(false);
+    }, 220);
   }
 
+  function togglePrivate() {
+    const next = !privateMode;
+    setPrivate(next);
+    setPrivateMode(next);
+  }
+
+  const loadingScreen = overlayMounted && (
+    <div className={`loading-screen${overlayVisible ? "" : " hide"}`}>
+      <div className="loading-mark">Opal&nbsp;Folio</div>
+      <div className="loading-sub">
+        <span className="spinner" /> Loading…
+      </div>
+    </div>
+  );
+
+  if (works === null) {
+    return <>{loadingScreen}</>;
+  }
+
+  const visible = privateMode ? works : works.filter((w) => !w.locked);
+  const hiddenCount = works.length - visible.length;
+
+  // Empty folio entirely.
   if (works.length === 0) {
     return (
       <>
@@ -57,62 +100,100 @@ export default function GalleryPage() {
             </button>
           </div>
         </div>
+        {loadingScreen}
+      </>
+    );
+  }
+
+  // Everything is locked and Private mode is off.
+  if (visible.length === 0) {
+    return (
+      <>
+        <div className="gallery-logo">
+          <div className="logo-main">Opal&nbsp;Folio</div>
+          <div className="logo-sub">color studies</div>
+        </div>
+        <div className="empty-state">
+          <h2>Nothing on display</h2>
+          <p>
+            {hiddenCount} locked {hiddenCount === 1 ? "study is" : "studies are"} hidden.
+            Turn on Private mode to see them.
+          </p>
+          <button className="btn btn-primary" onClick={togglePrivate}>
+            🔓 Enter Private mode
+          </button>
+        </div>
+        {loadingScreen}
       </>
     );
   }
 
   return (
     <>
-      {view === "carousel" ? (
-        <>
-          {/* Background wordmark — present behind the cards. */}
-          <div className="gallery-logo">
-            <div className="logo-main">Opal&nbsp;Folio</div>
-            <div className="logo-sub">color studies</div>
-          </div>
-          <CylinderGallery works={works} />
-          <div className="gallery-hint">
-            <span className="rule" />
-            Scroll or drag to turn
-            <span className="rule" />
-          </div>
-        </>
-      ) : (
-        <div className="grid-view">
-          <div className="grid-wrap">
-            {works.map((w) => (
-              <button
-                key={w.id}
-                className="grid-card"
-                onClick={() => navigate(`/work/${w.id}`)}
-                aria-label={w.title ?? "Open study"}
-              >
-                <img src={w.compositeDataUrl} alt={w.title ?? "Study"} loading="lazy" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bottom-left view toggle. */}
-      <button
-        className="view-toggle"
-        onClick={() => setView((v) => (v === "carousel" ? "grid" : "carousel"))}
-      >
+      <div className={`view-fade${fadingOut ? " out" : ""}`}>
         {view === "carousel" ? (
           <>
-            <GridIcon /> All works
+            <div className="gallery-logo">
+              <div className="logo-main">Opal&nbsp;Folio</div>
+              <div className="logo-sub">color studies</div>
+            </div>
+            <CylinderGallery works={visible} />
+            <div className="gallery-hint">
+              <span className="rule" />
+              Scroll or drag to turn
+              <span className="rule" />
+            </div>
           </>
         ) : (
-          <>
-            <RingIcon /> Carousel
-          </>
+          <div className="grid-view">
+            <div className="grid-wrap">
+              {visible.map((w) => (
+                <button
+                  key={w.id}
+                  className="grid-card"
+                  onClick={() => navigate(`/work/${w.id}`)}
+                  aria-label={w.title ?? "Open study"}
+                >
+                  {w.locked && <span className="grid-lock">🔒</span>}
+                  <img src={w.compositeDataUrl} alt={w.title ?? "Study"} loading="lazy" />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
-      </button>
+      </div>
+
+      {/* Bottom-left controls. */}
+      <div className="gallery-controls">
+        <button
+          className="view-toggle"
+          onClick={() => switchView(view === "carousel" ? "grid" : "carousel")}
+        >
+          {view === "carousel" ? (
+            <>
+              <GridIcon /> All works
+            </>
+          ) : (
+            <>
+              <RingIcon /> Carousel
+            </>
+          )}
+        </button>
+        <button
+          className={`view-toggle${privateMode ? " active" : ""}`}
+          onClick={togglePrivate}
+          title="Show locked studies"
+        >
+          {privateMode ? "🔓 Private on" : "🔒 Private"}
+        </button>
+      </div>
 
       <div className="gallery-count">
-        {works.length.toString().padStart(2, "0")} {works.length === 1 ? "study" : "studies"}
+        {visible.length.toString().padStart(2, "0")} {visible.length === 1 ? "study" : "studies"}
+        {privateMode && hiddenCount > 0 ? "" : null}
       </div>
+
+      {loadingScreen}
     </>
   );
 }

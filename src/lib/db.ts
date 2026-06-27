@@ -11,6 +11,8 @@ export interface Work {
   /** Five extracted palette colors as #RRGGBB strings. */
   palette: string[];
   title?: string;
+  /** Locked studies are hidden from the gallery unless Private mode is on. */
+  locked?: boolean;
 }
 
 interface FolioDB extends DBSchema {
@@ -59,4 +61,15 @@ export async function deleteWork(id: string): Promise<void> {
 
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/* ---- Private mode (whether locked studies are shown) ---- */
+const PRIVATE_KEY = "opal-folio:private";
+
+export function getPrivateMode(): boolean {
+  return localStorage.getItem(PRIVATE_KEY) === "1";
+}
+
+export function setPrivateMode(on: boolean) {
+  localStorage.setItem(PRIVATE_KEY, on ? "1" : "0");
 }
