@@ -150,22 +150,30 @@ export function stylize(
 
   const image = ctx.getImageData(0, 0, w, h);
 
-  // 1. Edge-preserving smoothing — flattens shading into clean fields while
-  //    keeping outlines crisp (the "painted illustration" base).
-  const passes = 1 + Math.round(opts.strength * 2); // 1..3
-  for (let p = 0; p < passes; p++) bilateral(image, w, h, 2, 30);
+  // 1. Strong edge-preserving smoothing — collapses shading into broad, flat
+  //    fields (the "thick paint" base) while keeping outlines.
+  const passes = 2 + Math.round(opts.strength * 2); // 2..4
+  for (let p = 0; p < passes; p++) bilateral(image, w, h, 2, 38);
 
-  // 2. Optional saturation lift, before colours are clustered.
+  // 2. Saturation lift before colours are clustered.
   if (opts.saturation !== 1) applySaturation(image, opts.saturation);
 
   // 3. Outlines from the smoothed image.
   const edges = sobelEdges(image, w, h);
 
-  // 4. Cluster the image's own colours and snap every pixel to the nearest —
-  //    cel-shaded flat fields that follow the picture, not channel-wise bands.
-  const depth = Math.max(3, Math.min(5, 5 - Math.round(opts.strength * 2))); // 32..8 colours
-  const palette = buildPalette(image, w, h, depth);
-  mapToPaletteAndInk(image, edges, palette, w);
+  // 4. Cluster the image's own colours and snap each pixel to the nearest —
+  //    flat cel fields that follow the picture. A generous palette keeps vivid
+  //    hues alive; the palette is re-saturated so clustering doesn't dull it.
+  const depth = Math.max(4, Math.min(6, 6 - Math.round(opts.strength * 2))); // 64..16
+  const palette = saturatePalette(buildPalette(image, w, h, depth), 1.18);
+  mapToPalette(image, palette);
+
+  // 5. Soften the boundaries between flat fields so they read as broad brush
+  //    strokes rather than hard steps or dither dots.
+  softBlur(image, w, h);
+
+  // 6. Lay crisp ink back over the strong edges.
+  inkEdges(image, edges, opts.strength);
 
   ctx.putImageData(image, 0, 0);
   return canvas;
@@ -234,27 +242,23 @@ function buildPalette(
   return medianCut(pixels, depth);
 }
 
-// 4x4 Bayer matrix, centred to roughly [-0.5, 0.5].
-const BAYER = [
-  0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5,
-].map((v) => v / 16 - 0.5);
+/** Push palette colours away from their luminance (chroma boost) so that
+ *  clustering averages don't read as muddy. */
+function saturatePalette(palette: number[][], f: number): number[][] {
+  return palette.map(([r, g, b]) => {
+    const l = luminance(r, g, b);
+    return [
+      clamp(l + (r - l) * f),
+      clamp(l + (g - l) * f),
+      clamp(l + (b - l) * f),
+    ];
+  });
+}
 
-function mapToPaletteAndInk(
-  image: ImageData,
-  edges: Float32Array,
-  palette: number[][],
-  width: number
-) {
+function mapToPalette(image: ImageData, palette: number[][]) {
   const { data } = image;
-  // Ordered dithering amplitude: enough to alternate between adjacent palette
-  // colours at a boundary (kills banding on smooth gradients) but small enough
-  // that genuinely flat fields stay flat.
-  const dither = 26;
-  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    const px = p % width, py = (p / width) | 0;
-    const d = BAYER[(py & 3) * 4 + (px & 3)] * dither;
-    const r = data[i] + d, g = data[i + 1] + d, b = data[i + 2] + d;
-    // Nearest palette colour.
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
     let best = palette[0], bestD = Infinity;
     for (let k = 0; k < palette.length; k++) {
       const c = palette[k];
@@ -262,15 +266,44 @@ function mapToPaletteAndInk(
       const d = dr * dr + dg * dg + db * db;
       if (d < bestD) { bestD = d; best = c; }
     }
-    let nr = best[0], ng = best[1], nb = best[2];
+    data[i] = best[0]; data[i + 1] = best[1]; data[i + 2] = best[2];
+  }
+}
 
-    // Thin, soft ink on strong edges only.
-    const e = edges[p];
-    if (e > 110) {
-      const k = Math.min(0.5, (e - 110) / 360);
-      nr *= 1 - k; ng *= 1 - k; nb *= 1 - k;
+/** Light 3x3 box blur: softens the seams between flat fields into broad,
+ *  brush-like transitions (no dither, no hard steps). */
+function softBlur(image: ImageData, w: number, h: number) {
+  const { data } = image;
+  const src = new Uint8ClampedArray(data);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let rs = 0, gs = 0, bs = 0, cnt = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          const i = (yy * w + xx) * 4;
+          rs += src[i]; gs += src[i + 1]; bs += src[i + 2]; cnt++;
+        }
+      }
+      const i = (y * w + x) * 4;
+      data[i] = rs / cnt; data[i + 1] = gs / cnt; data[i + 2] = bs / cnt;
     }
-    data[i] = nr; data[i + 1] = ng; data[i + 2] = nb;
+  }
+}
+
+function inkEdges(image: ImageData, edges: Float32Array, strength: number) {
+  const { data } = image;
+  const threshold = 120;
+  const maxDarken = 0.3 + strength * 0.2; // 0.3..0.5
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const e = edges[p];
+    if (e > threshold) {
+      const k = Math.min(maxDarken, (e - threshold) / 380);
+      data[i] *= 1 - k; data[i + 1] *= 1 - k; data[i + 2] *= 1 - k;
+    }
   }
 }
 
