@@ -189,10 +189,13 @@ function Scene({
   control: React.MutableRefObject<SharedControl>;
   onOpen: (id: string) => void;
 }) {
-  // Keep cards close together (fixed step) until there are enough to fill the
-  // ring, then spread them evenly so a busy gallery still loops seamlessly.
-  const full = (Math.PI * 2) / Math.max(1, works.length);
-  const step = works.length <= 12 ? DENSE_STEP : full;
+  // Fill the whole ring so there is no seam: keep ~30° spacing by tiling the
+  // works across at least RING_SLOTS positions; a busy gallery just packs
+  // tighter. Either way slots * step === 2π, so the loop is continuous.
+  const n = Math.max(1, works.length);
+  const RING_SLOTS = Math.round((Math.PI * 2) / DENSE_STEP); // 12
+  const slots = Math.max(n, RING_SLOTS);
+  const step = (Math.PI * 2) / slots;
 
   useFrame(() => {
     const c = control.current;
@@ -202,8 +205,14 @@ function Scene({
 
   return (
     <>
-      {works.map((work, i) => (
-        <Card key={work.id} work={work} angle={i * step} control={control} onOpen={onOpen} />
+      {Array.from({ length: slots }, (_, i) => (
+        <Card
+          key={i}
+          work={works[i % n]}
+          angle={i * step}
+          control={control}
+          onOpen={onOpen}
+        />
       ))}
     </>
   );
