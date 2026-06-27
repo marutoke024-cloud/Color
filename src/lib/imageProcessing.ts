@@ -149,40 +149,129 @@ export function stylize(
   ctx.drawImage(img, 0, 0, w, h);
 
   const image = ctx.getImageData(0, 0, w, h);
-  const blurRadius = 1 + Math.round(opts.strength * 2);
-  boxBlur(image, w, h, blurRadius);
 
-  const levels = Math.max(3, Math.round(8 - opts.strength * 4)); // posterize
+  // 1. Edge-preserving smoothing — flattens shading into clean fields while
+  //    keeping outlines crisp (the "painted illustration" base).
+  const passes = 1 + Math.round(opts.strength * 2); // 1..3
+  for (let p = 0; p < passes; p++) bilateral(image, w, h, 2, 30);
+
+  // 2. Optional saturation lift, before colours are clustered.
+  if (opts.saturation !== 1) applySaturation(image, opts.saturation);
+
+  // 3. Outlines from the smoothed image.
   const edges = sobelEdges(image, w, h);
 
-  posterizeAndShade(image, edges, levels, opts.saturation);
+  // 4. Cluster the image's own colours and snap every pixel to the nearest —
+  //    cel-shaded flat fields that follow the picture, not channel-wise bands.
+  const depth = Math.max(3, Math.min(5, 5 - Math.round(opts.strength * 2))); // 32..8 colours
+  const palette = buildPalette(image, w, h, depth);
+  mapToPaletteAndInk(image, edges, palette, w);
 
   ctx.putImageData(image, 0, 0);
   return canvas;
 }
 
-function boxBlur(image: ImageData, w: number, h: number, r: number) {
-  if (r < 1) return;
+/** Approximate bilateral filter: average neighbours weighted by colour
+ *  similarity, so flat areas smooth out but edges are preserved. */
+function bilateral(
+  image: ImageData,
+  w: number,
+  h: number,
+  radius: number,
+  sigmaColor: number
+) {
   const { data } = image;
-  const tmp = new Uint8ClampedArray(data);
-  const pass = (src: Uint8ClampedArray, dst: Uint8ClampedArray, horizontal: boolean) => {
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let rs = 0, gs = 0, bs = 0, cnt = 0;
-        for (let k = -r; k <= r; k++) {
-          const xx = horizontal ? x + k : x;
-          const yy = horizontal ? y : y + k;
-          if (xx < 0 || xx >= w || yy < 0 || yy >= h) continue;
+  const src = new Uint8ClampedArray(data);
+  const inv = 1 / (2 * sigmaColor * sigmaColor);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ci = (y * w + x) * 4;
+      const cr = src[ci], cg = src[ci + 1], cb = src[ci + 2];
+      let rs = 0, gs = 0, bs = 0, ws = 0;
+      const y0 = Math.max(0, y - radius), y1 = Math.min(h - 1, y + radius);
+      const x0 = Math.max(0, x - radius), x1 = Math.min(w - 1, x + radius);
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
           const i = (yy * w + xx) * 4;
-          rs += src[i]; gs += src[i + 1]; bs += src[i + 2]; cnt++;
+          const dr = src[i] - cr, dg = src[i + 1] - cg, db = src[i + 2] - cb;
+          const wgt = Math.exp(-(dr * dr + dg * dg + db * db) * inv);
+          rs += src[i] * wgt; gs += src[i + 1] * wgt; bs += src[i + 2] * wgt; ws += wgt;
         }
-        const i = (y * w + x) * 4;
-        dst[i] = rs / cnt; dst[i + 1] = gs / cnt; dst[i + 2] = bs / cnt; dst[i + 3] = src[i + 3];
       }
+      data[ci] = rs / ws; data[ci + 1] = gs / ws; data[ci + 2] = bs / ws;
     }
-  };
-  pass(data, tmp, true);
-  pass(tmp, data, false);
+  }
+}
+
+function applySaturation(image: ImageData, saturation: number) {
+  const { data } = image;
+  for (let i = 0; i < data.length; i += 4) {
+    const l = luminance(data[i], data[i + 1], data[i + 2]);
+    data[i] = clamp(l + (data[i] - l) * saturation);
+    data[i + 1] = clamp(l + (data[i + 1] - l) * saturation);
+    data[i + 2] = clamp(l + (data[i + 2] - l) * saturation);
+  }
+}
+
+function buildPalette(
+  image: ImageData,
+  w: number,
+  h: number,
+  depth: number
+): number[][] {
+  const { data } = image;
+  const pixels: number[][] = [];
+  // Sample a subset for speed.
+  const stepX = Math.max(1, Math.floor(w / 120));
+  const stepY = Math.max(1, Math.floor(h / 120));
+  for (let y = 0; y < h; y += stepY) {
+    for (let x = 0; x < w; x += stepX) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] < 125) continue;
+      pixels.push([data[i], data[i + 1], data[i + 2]]);
+    }
+  }
+  return medianCut(pixels, depth);
+}
+
+// 4x4 Bayer matrix, centred to roughly [-0.5, 0.5].
+const BAYER = [
+  0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5,
+].map((v) => v / 16 - 0.5);
+
+function mapToPaletteAndInk(
+  image: ImageData,
+  edges: Float32Array,
+  palette: number[][],
+  width: number
+) {
+  const { data } = image;
+  // Ordered dithering amplitude: enough to alternate between adjacent palette
+  // colours at a boundary (kills banding on smooth gradients) but small enough
+  // that genuinely flat fields stay flat.
+  const dither = 26;
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const px = p % width, py = (p / width) | 0;
+    const d = BAYER[(py & 3) * 4 + (px & 3)] * dither;
+    const r = data[i] + d, g = data[i + 1] + d, b = data[i + 2] + d;
+    // Nearest palette colour.
+    let best = palette[0], bestD = Infinity;
+    for (let k = 0; k < palette.length; k++) {
+      const c = palette[k];
+      const dr = r - c[0], dg = g - c[1], db = b - c[2];
+      const d = dr * dr + dg * dg + db * db;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    let nr = best[0], ng = best[1], nb = best[2];
+
+    // Thin, soft ink on strong edges only.
+    const e = edges[p];
+    if (e > 110) {
+      const k = Math.min(0.5, (e - 110) / 360);
+      nr *= 1 - k; ng *= 1 - k; nb *= 1 - k;
+    }
+    data[i] = nr; data[i + 1] = ng; data[i + 2] = nb;
+  }
 }
 
 function sobelEdges(image: ImageData, w: number, h: number): Float32Array {
@@ -205,37 +294,6 @@ function sobelEdges(image: ImageData, w: number, h: number): Float32Array {
     }
   }
   return out;
-}
-
-function posterizeAndShade(
-  image: ImageData,
-  edges: Float32Array,
-  levels: number,
-  saturation: number
-) {
-  const { data } = image;
-  const step = 255 / (levels - 1);
-  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    let r = Math.round(data[i] / step) * step;
-    let g = Math.round(data[i + 1] / step) * step;
-    let b = Math.round(data[i + 2] / step) * step;
-
-    if (saturation !== 1) {
-      const l = luminance(r, g, b);
-      r = clamp(l + (r - l) * saturation);
-      g = clamp(l + (g - l) * saturation);
-      b = clamp(l + (b - l) * saturation);
-    }
-
-    // Ink the strong edges for a drawn outline.
-    const e = edges[p];
-    if (e > 90) {
-      const k = Math.min(0.7, (e - 90) / 320);
-      r *= 1 - k; g *= 1 - k; b *= 1 - k;
-    }
-
-    data[i] = r; data[i + 1] = g; data[i + 2] = b;
-  }
 }
 
 function clamp(n: number): number {
