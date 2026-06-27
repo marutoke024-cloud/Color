@@ -10,7 +10,8 @@ const CARD_W = 2.3;
 const CARD_H = 3.2;
 const CAM_Z = 14.5;
 const CAM_FOV = 30;
-const AUTO_SPEED = 0.0011; // constant slow drift (radians / frame)
+const AUTO_SPEED = 0.0005; // constant slow drift (radians / frame)
+const DENSE_STEP = Math.PI / 6; // 30° between cards when the ring isn't full
 
 /* ---- Card thumbnail (fixed card aspect, uniform palette band) ---- */
 const TEX_W = 512;
@@ -188,8 +189,10 @@ function Scene({
   control: React.MutableRefObject<SharedControl>;
   onOpen: (id: string) => void;
 }) {
-  // Even spacing around the full circle → seamless loop for any count.
-  const step = (Math.PI * 2) / Math.max(1, works.length);
+  // Keep cards close together (fixed step) until there are enough to fill the
+  // ring, then spread them evenly so a busy gallery still loops seamlessly.
+  const full = (Math.PI * 2) / Math.max(1, works.length);
+  const step = works.length <= 12 ? DENSE_STEP : full;
 
   useFrame(() => {
     const c = control.current;
